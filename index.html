@@ -26,19 +26,30 @@
         select, input[type="text"] { padding: 12px; font-size: 1rem; border: 1px solid var(--border); border-radius: 6px; outline: none; background-color: #fff; }
         select:focus, input:focus { border-color: var(--accent); }
 
-        /* Mobile Card Layout */
-        .candidate-grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        /* Mobile Card Layout (Highly Readable) */
+        .candidate-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
         @media (min-width: 600px) { .candidate-grid { grid-template-columns: repeat(2, 1fr); } }
         
-        .card { background: var(--card-bg); border-radius: 8px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid var(--border); }
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-        .region { font-size: 0.85rem; color: #64748b; font-weight: bold; line-height: 1.3; }
-        .badge { display: inline-block; padding: 4px 8px; font-size: 0.75rem; font-weight: bold; background-color: #e2e8f0; color: #334155; border-radius: 4px; white-space: nowrap; margin-left: 8px; }
-        .name-row { margin-bottom: 8px; }
-        .name { font-size: 1.25rem; font-weight: bold; color: var(--primary); margin-right: 5px; }
-        .age-gender { font-size: 0.85rem; color: #64748b; }
-        .info-row { font-size: 0.9rem; margin-bottom: 6px; line-height: 1.4; }
-        .info-label { font-weight: bold; color: var(--secondary); display: inline-block; width: 40px; }
+        .card { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 2px solid #e2e8f0; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; border-bottom: 2px solid #f1f5f9; padding-bottom: 16px; }
+        .region-info { display: flex; flex-direction: column; gap: 6px; flex-grow: 1; padding-right: 10px; }
+        .region-main { font-size: 1.35rem; font-weight: 900; color: #1e293b; line-height: 1.3; word-break: keep-all; }
+        .region-sub { font-size: 1.1rem; font-weight: 800; color: var(--accent); background: #eff6ff; display: inline-block; padding: 6px 10px; border-radius: 6px; width: fit-content; }
+        .badge { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; font-size: 1.05rem; font-weight: 900; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); white-space: nowrap; flex-shrink: 0; }
+        
+        .name-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .name { font-size: 1.9rem; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
+        .meta-tags { display: flex; gap: 8px; }
+        .meta-tag { background: #e2e8f0; color: #334155; padding: 6px 12px; border-radius: 6px; font-size: 1.05rem; font-weight: 800; }
+        
+        .info-section { background: #f8fafc; border-radius: 8px; padding: 16px; border: 1px solid #e2e8f0; }
+        .info-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+        .info-row:last-child { margin-bottom: 0; }
+        .info-label { font-size: 1rem; font-weight: 900; color: #64748b; }
+        .info-content { font-size: 1.1rem; color: #334155; font-weight: 700; line-height: 1.5; word-break: keep-all; }
+        .career-item { position: relative; padding-left: 14px; margin-bottom: 8px; }
+        .career-item:last-child { margin-bottom: 0; }
+        .career-item::before { content: "•"; position: absolute; left: 0; color: #94a3b8; font-weight: bold; }
         
         .message { text-align: center; padding: 40px 20px; color: #666; background: var(--card-bg); border-radius: 8px; }
         .loading-spinner { font-weight: bold; color: var(--accent); animation: pulse 1.5s infinite; }
@@ -85,6 +96,8 @@
                     <input type="text" id="searchInput" placeholder="지역, 이름, 학력, 경력 검색...">
                 </div>
             </div>
+            
+            <div id="resultCount" style="font-weight: bold; color: var(--primary); margin-bottom: 15px; font-size: 1.1rem; text-align: right;"></div>
             
             <div id="resultContainer" class="candidate-grid"></div>
         </div>
@@ -150,32 +163,61 @@
         }
 
         async function fetchSingleElectionType(typeCode) {
-            const queryParams = new URLSearchParams({
+            const queryParams = {
                 serviceKey: API_KEY,
-                pageNo: '1',
-                numOfRows: '1000',
-                sgId: '20260603', // 2026년 지방선거 고정
+                numOfRows: '100', // 공공데이터포털 API 최대 건수 제한 감안
+                sgId: '20260603',
                 sgTypecode: typeCode,
                 resultType: 'json'
-            });
+            };
 
-            const url = `http://apis.data.go.kr/9760000/PofelcddInfoInqireService/getPoelpcddRegistSttusInfoInqire?${queryParams.toString()}`;
+            const getUrl = (pageNum) => {
+                const p = new URLSearchParams({...queryParams, pageNo: pageNum.toString()});
+                return `http://apis.data.go.kr/9760000/PofelcddInfoInqireService/getPoelpcddRegistSttusInfoInqire?${p.toString()}`;
+            };
 
             try {
-                const response = await fetch(url);
+                // 1. 첫 페이지를 호출하여 totalCount 확보
+                const response = await fetch(getUrl(1));
                 if (!response.ok) return [];
-
+                
                 const data = await response.json();
                 const header = data.response?.header;
-                
                 if (header?.resultCode !== 'INFO-00') return [];
 
+                const totalCount = parseInt(data.response?.body?.totalCount || 0, 10);
                 let items = data.response?.body?.items?.item || [];
                 if (!Array.isArray(items)) items = [items];
                 
-                return items.map(item => ({...item, _typeCode: typeCode}));
+                let allItems = [...items];
+
+                // 2. 전체 데이터 건수를 바탕으로 남은 페이지(2페이지부터) 병렬 호출
+                if (totalCount > 100) {
+                    const totalPages = Math.ceil(totalCount / 100);
+                    const promises = [];
+                    for (let page = 2; page <= totalPages; page++) {
+                        promises.push(
+                            fetch(getUrl(page))
+                            .then(res => res.json())
+                            .then(d => {
+                                let pItems = d.response?.body?.items?.item || [];
+                                if (!Array.isArray(pItems)) pItems = [pItems];
+                                return pItems;
+                            })
+                            .catch(() => []) 
+                        );
+                    }
+                    
+                    const remainingResults = await Promise.all(promises);
+                    remainingResults.forEach(pItems => {
+                        allItems = allItems.concat(pItems);
+                    });
+                }
+
+                return allItems.map(item => ({...item, _typeCode: typeCode}));
             } catch (e) {
-                return []; // 개별 호출 실패 시 빈 배열 반환하여 전체 병합이 깨지지 않게 방어
+                console.error(`Type ${typeCode} 데이터 호출 실패:`, e);
+                return []; 
             }
         }
 
@@ -208,8 +250,11 @@
 
             if (filteredData.length === 0) {
                 resultContainer.innerHTML = '<div class="message">조건에 맞는 후보자가 없습니다.</div>';
+                document.getElementById('resultCount').textContent = '검색 결과: 0명';
                 return;
             }
+
+            document.getElementById('resultCount').textContent = `검색 결과: ${filteredData.length}명`;
 
             resultContainer.innerHTML = '';
             const fragment = document.createDocumentFragment();
@@ -218,23 +263,47 @@
                 const card = document.createElement('div');
                 card.className = 'card';
                 
-                let regionStr = `${escapeHTML(c.sdName||'')}`;
-                if (c.wiwName) regionStr += ` > ${escapeHTML(c.wiwName)}`;
-                if (c.sggName && c.sggName !== c.wiwName && c.sggName !== c.sdName) regionStr += ` <br><span style="color:#64748b; font-size:0.95em;">(${escapeHTML(c.sggName)})</span>`;
+                let regionTitle = `${escapeHTML(c.sdName || '')} ${escapeHTML(c.wiwName || '')}`.trim();
+                let sggText = '';
+                if (c.sggName && c.sggName !== c.wiwName && c.sggName !== c.sdName) {
+                    sggText = escapeHTML(c.sggName);
+                }
 
                 const partyName = escapeHTML(c.jdName || '무소속');
+                const partyColorInfo = getPartyColor(partyName);
+                
+                let careerHtml = `<div class="career-item">${escapeHTML(c.career1 || '-')}</div>`;
+                if(c.career2) careerHtml += `<div class="career-item">${escapeHTML(c.career2)}</div>`;
 
                 card.innerHTML = `
                     <div class="card-header">
-                        <div class="region">${regionStr}</div>
-                        <div class="badge">${partyName}</div>
+                        <div class="region-info">
+                            <div class="region-main">${regionTitle}</div>
+                            ${sggText ? `<div class="region-sub">${sggText}</div>` : ''}
+                        </div>
+                        <div class="badge" style="background-color: ${partyColorInfo.bg}; color: ${partyColorInfo.text}; border: 1px solid ${partyColorInfo.border || partyColorInfo.bg};">${partyName}</div>
                     </div>
+                    
                     <div class="name-row">
-                        <span class="name">${escapeHTML(c.name)}</span>
-                        <span class="age-gender">${escapeHTML(c.age)}세 / ${escapeHTML(c.gender)}</span>
+                        <div class="name">${escapeHTML(c.name)}</div>
+                        <div class="meta-tags">
+                            <span class="meta-tag">${escapeHTML(c.age)}세</span>
+                            <span class="meta-tag">${escapeHTML(c.gender)}</span>
+                        </div>
                     </div>
-                    <div class="info-row"><span class="info-label">학력</span> ${escapeHTML(c.edu)}</div>
-                    <div class="info-row"><span class="info-label">경력</span> ${escapeHTML(c.career1)} <br><span style="color:#64748b; font-size:0.85em; margin-left:40px;">${escapeHTML(c.career2 || '')}</span></div>
+                    
+                    <div class="info-section">
+                        <div class="info-row">
+                            <div class="info-label">학력</div>
+                            <div class="info-content">${escapeHTML(c.edu || '-')}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">경력</div>
+                            <div class="info-content">
+                                ${careerHtml}
+                            </div>
+                        </div>
+                    </div>
                 `;
                 fragment.appendChild(card);
             });
@@ -247,6 +316,34 @@
             return str.toString().replace(/[&<>"']/g, function(m) {
                 return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[m];
             });
+        }
+
+        function getPartyColor(partyName) {
+            // 대한민국 2026 주요 정당 상징색 기반 매핑
+            const colors = {
+                '더불어민주당': { bg: '#004EA2', text: '#ffffff' }, // 파란색
+                '국민의힘': { bg: '#E61E2B', text: '#ffffff' },     // 붉은색
+                '조국혁신당': { bg: '#0073CF', text: '#ffffff' },   // 트루 블루
+                '개혁신당': { bg: '#FF7920', text: '#ffffff' },     // 개혁오렌지
+                '진보당': { bg: '#D6001C', text: '#ffffff' },       // 빨간색
+                '기본소득당': { bg: '#00D2C3', text: '#ffffff' },   // 베이직 민트
+                '새로운미래': { bg: '#00A9E0', text: '#ffffff' },   // 민트/하늘 (예시 색상 추정)
+                '녹색정의당': { bg: '#007C36', text: '#ffffff' },   // 녹색/노란색
+                '무소속': { bg: '#e2e8f0', text: '#334155', border: '#cbd5e1' } // 기본 회색
+            };
+
+            // 정확한 매칭
+            if (colors[partyName]) return colors[partyName];
+
+            // 부분 매칭 알고리즘 (예: '더불어민주당'이 포함되어 있으면 민주당 색상 반환)
+            if (partyName.includes('민주')) return colors['더불어민주당'];
+            if (partyName.includes('국민의힘')) return colors['국민의힘'];
+            if (partyName.includes('조국')) return colors['조국혁신당'];
+            if (partyName.includes('개혁')) return colors['개혁신당'];
+            if (partyName.includes('진보')) return colors['진보당'];
+            
+            // 매칭되는 정당이 없을 경우 기본 회색 배지 반환
+            return colors['무소속'];
         }
     </script>
 </body>
