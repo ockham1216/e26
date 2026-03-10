@@ -50,12 +50,6 @@
         .tag-age-young { background-color: #f0fdf4; color: #16a34a; border-color: #bbf7d0; font-weight: 800; } /* Soft Green - 50s and below */
         .tag-age-senior { background-color: #fdf4ff; color: #a21caf; border-color: #f5d0fe; font-weight: 800; } /* Soft Purple - 60s and above */
 
-        /* API Tracker Bar (RPG Style) */
-        #apiTrackerContainer { display: none; margin-bottom: 20px; background: var(--card-bg); padding: 12px 16px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); border: 1px solid var(--border); }
-        .api-header { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 900; color: var(--secondary); margin-bottom: 6px; }
-        .api-bar-bg { background-color: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden; width: 100%; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
-        #apiBarFill { height: 100%; width: 0%; transition: width 0.4s ease, background-color 0.4s ease; border-radius: 4px; }
-
         .info-section { background: #f8fafc; border-radius: 6px; padding: 12px; border: 1px solid #e2e8f0; }
         .info-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
         .info-row:last-child { margin-bottom: 0; }
@@ -88,11 +82,11 @@
         </div>
 
         <div id="mainApp">
-            <!-- API Status Tracker (관계자 전용, 바 형태만 표시) -->
-            <div id="apiTrackerContainer" title="일일 API 예상 사용량">
-                <div class="api-bar-bg">
-                    <div id="apiBarFill"></div>
+            <div id="refreshSection" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: var(--card-bg); padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                <div id="lastRefreshDate" style="font-size: 0.9rem; font-weight: bold; color: var(--secondary);">
+                    최근 새로고침: 데이터 없음
                 </div>
+                <button class="btn" style="width: auto; margin: 0; padding: 8px 15px; font-size: 0.85rem;" onclick="promptRefresh()">데이터 새로고침</button>
             </div>
 
             <div class="controls">
@@ -125,9 +119,6 @@
     </div>
 
     <script>
-        // ⚠️ 여기에 사용자님의 '디코딩된' 공공데이터포털 API 키를 하드코딩으로 넣으세요.
-        const API_KEY = '7ed3ab09950af11da216b474b58bb4a2e5f78b7d0477675815eb24de796d3915'; 
-        
         // 사용자가 설정한 시스템 비밀번호
         const SYSTEM_PASSWORD = '650406';
 
@@ -140,45 +131,6 @@
         const searchInput = document.getElementById('searchInput');
         const resultContainer = document.getElementById('resultContainer');
 
-        // API 사용량 추적 로직 (RPG 체력바 스타일)
-        const API_DAILY_LIMIT = 1000; // 공공데이터포털 기본 제공량 기준
-        
-        function getApiCountKey() {
-            const today = new Date();
-            return `api_count_${today.getFullYear()}_${today.getMonth()+1}_${today.getDate()}`;
-        }
-
-        function incrementApiCount(calls = 1) {
-            const key = getApiCountKey();
-            let count = parseInt(localStorage.getItem(key) || '0', 10);
-            count += calls;
-            localStorage.setItem(key, count.toString());
-            updateApiTrackerUI(count);
-        }
-
-        function updateApiTrackerUI(count) {
-            const container = document.getElementById('apiTrackerContainer');
-            const bar = document.getElementById('apiBarFill');
-            
-            if(container) container.style.display = 'block';
-            if(!bar) return;
-
-            let percentage = (count / API_DAILY_LIMIT) * 100;
-            if(percentage > 100) percentage = 100;
-            
-            bar.style.width = `${percentage}%`;
-            container.title = `내 기기 오늘 API 사용 횟수: ${count} / ${API_DAILY_LIMIT}`; // 호버 시에만 보이게 숨김
-            
-            // 색상 변화 로직 (안전: 녹색, 경고: 주황, 위험: 빨강)
-            if (percentage < 60) {
-                bar.style.backgroundColor = '#10b981'; // Green
-            } else if (percentage < 90) {
-                bar.style.backgroundColor = '#f59e0b'; // Orange
-            } else {
-                bar.style.backgroundColor = '#ef4444'; // Red
-            }
-        }
-
         // 비밀번호 확인 로직
         function checkPassword() {
             const input = document.getElementById('passwordInput').value;
@@ -187,110 +139,63 @@
             if (input === SYSTEM_PASSWORD) {
                 authSection.style.display = 'none';
                 mainApp.style.display = 'block';
-                fetchAllElectionsData(); // 비밀번호 통과 시 데이터 로드 시작
+                loadData(); // 데이터 파일(data.json) 로드 시작
             } else {
                 errorMsg.style.display = 'block';
                 document.getElementById('passwordInput').value = '';
             }
         }
 
-        async function fetchAllElectionsData() {
-            resultContainer.innerHTML = '<div class="message loading-spinner">전국 모든 선거 데이터를 병합 중입니다...<br>(속도 최적화 중...)</div>';
-            allCandidates = [];
-            
-            const typeCodes = ['2', '3', '4', '5', '6', '11'];
+        async function loadData() {
+            resultContainer.innerHTML = '<div class="message loading-spinner">저장소에서 데이터를 불러오고 있습니다...</div>';
             
             try {
-                // 선거 종류들을 병렬로 호출하여 속도를 다시 높임
-                const promises = typeCodes.map(code => fetchSingleElectionType(code));
-                const results = await Promise.all(promises);
+                // 브라우저 캐싱 방지를 위해 timestamp 추가
+                const response = await fetch('data.json?t=' + new Date().getTime());
+                if (!response.ok) {
+                    throw new Error('데이터 파일을 찾을 수 없습니다.');
+                }
+                const parsedData = await response.json();
                 
-                allCandidates = results.flat();
+                allCandidates = parsedData.data;
+                const cachedDate = parsedData.last_updated;
+                
+                if (cachedDate) {
+                    document.getElementById('lastRefreshDate').textContent = `최근 업데이트: ${cachedDate}`;
+                }
 
-                if (allCandidates.length === 0) {
-                    throw new Error('등록된 예비후보자가 없습니다. (일일 API 요청 허용량을 초과했을 수 있습니다)');
+                if (!allCandidates || allCandidates.length === 0) {
+                    resultContainer.innerHTML = '<div class="message">등록된 예비후보자가 없습니다.</div>';
+                    return;
                 }
 
                 setupPartyDropdown();
                 renderCards();
+                
+                partySelect.removeEventListener('change', renderCards);
+                electionTypeSelect.removeEventListener('change', renderCards);
+                searchInput.removeEventListener('input', renderCards);
 
                 partySelect.addEventListener('change', renderCards);
                 electionTypeSelect.addEventListener('change', renderCards);
                 searchInput.addEventListener('input', renderCards);
-
-            } catch (error) {
-                resultContainer.innerHTML = `<div class="message" style="color:red;">데이터 통신 오류: API 키가 잘못되었거나 트래픽 초과입니다.<br><br>세부 오류: ${error.message}</div>`;
+            } catch(e) {
+                console.error("데이터 로드 오류:", e);
+                resultContainer.innerHTML = '<div class="message" style="color:red;">저장된 데이터 파일(data.json)을 읽어오는 데 실패했습니다.<br>아직 봇이 데이터를 수집하지 않았을 수 있습니다.</div>';
             }
         }
 
-        async function fetchSingleElectionType(typeCode) {
-            const queryParams = {
-                serviceKey: API_KEY,
-                numOfRows: '100', // 공공데이터포털 API 최대 건수 제한 감안
-                sgId: '20260603',
-                sgTypecode: typeCode,
-                resultType: 'json'
-            };
-
-            const getUrl = (pageNum) => {
-                const p = new URLSearchParams({...queryParams, pageNo: pageNum.toString()});
-                return `http://apis.data.go.kr/9760000/PofelcddInfoInqireService/getPoelpcddRegistSttusInfoInqire?${p.toString()}`;
-            };
-
-            try {
-                // 1. 첫 페이지를 호출하여 totalCount 확보
-                incrementApiCount(1);
-                const response = await fetch(getUrl(1));
-                if (!response.ok) return [];
-                
-                const data = await response.json();
-                const header = data.response?.header;
-                if (header?.resultCode !== 'INFO-00') return [];
-
-                const totalCount = parseInt(data.response?.body?.totalCount || 0, 10);
-                let items = data.response?.body?.items?.item || [];
-                if (!Array.isArray(items)) items = [items];
-                
-                let allItems = [...items];
-
-                // 2. 전체 데이터 건수를 바탕으로 남은 페이지 병렬 처리 (속도 증진)
-                // 단, 동시 폭주 오류를 막기 위해 아주 미세한 지연(마이크로 딜레이)만 주며 동시 실행 (staggered parallel)
-                if (totalCount > 100) {
-                    const totalPages = Math.ceil(totalCount / 100);
-                    const promises = [];
-                    for (let page = 2; page <= totalPages; page++) {
-                        // 페이지 번호에 비례하여 20ms씩 차이를 두고 호출 (블로킹 방지)
-                        const p = new Promise(resolve => setTimeout(resolve, (page - 2) * 20))
-                            .then(() => {
-                                incrementApiCount(1);
-                                return fetch(getUrl(page));
-                            })
-                            .then(res => {
-                                if (!res.ok) return [];
-                                return res.json();
-                            })
-                            .then(d => {
-                                let pItems = d.response?.body?.items?.item || [];
-                                if (!Array.isArray(pItems)) pItems = [pItems];
-                                return pItems;
-                            })
-                            .catch(err => {
-                                console.warn(`Type ${typeCode} 페이지 ${page} 호출 에러:`, err);
-                                return [];
-                            });
-                        promises.push(p);
-                    }
-                    
-                    const remainingResults = await Promise.all(promises);
-                    remainingResults.forEach(pItems => {
-                        allItems = allItems.concat(pItems);
-                    });
+        function promptRefresh() {
+            const pwd = prompt("데이터 수동 업데이트를 위한 관리자 비밀번호를 입력해주세요.");
+            if (pwd === SYSTEM_PASSWORD) {
+                const isGithub = confirm("새로운 공공데이터 통신을 수행하시겠습니까?\n\n[확인]: GitHub 통신 봇을 수동으로 실행시키는 관리자 페이지로 이동합니다. (해당 페이지에서 'Run workflow' 버튼을 클릭해주세요)\n\n[취소]: 외부통신 없이, 이 웹페이지 내의 화면정보만 강제 새로고침합니다.");
+                if (isGithub) {
+                    window.open('https://github.com/ockham1216/e26/actions/workflows/update_data.yml', '_blank');
+                } else {
+                    loadData();
                 }
-
-                return allItems.map(item => ({...item, _typeCode: typeCode}));
-            } catch (e) {
-                console.error(`Type ${typeCode} 데이터 호출 실패:`, e);
-                return []; 
+            } else if (pwd !== null) {
+                alert("비밀번호가 일치하지 않습니다.");
             }
         }
 
