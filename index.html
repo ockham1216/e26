@@ -30,7 +30,7 @@
         .candidate-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
         @media (min-width: 600px) { .candidate-grid { grid-template-columns: repeat(2, 1fr); } }
         
-        .card { background: var(--card-bg); border-radius: 8px; padding: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; }
+        .card { background: var(--card-bg); border-radius: 8px; padding: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; min-width: 0; }
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
         .region-info { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; padding-right: 8px; }
         .region-main { font-size: 1.1rem; font-weight: 800; color: #1e293b; line-height: 1.2; word-break: keep-all; }
@@ -50,11 +50,17 @@
         .tag-age-young { background-color: #f0fdf4; color: #16a34a; border-color: #bbf7d0; font-weight: 800; } /* Soft Green - 50s and below */
         .tag-age-senior { background-color: #fdf4ff; color: #a21caf; border-color: #f5d0fe; font-weight: 800; } /* Soft Purple - 60s and above */
 
+        /* API Tracker Bar (RPG Style) */
+        #apiTrackerContainer { display: none; margin-bottom: 20px; background: var(--card-bg); padding: 12px 16px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        .api-header { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 900; color: var(--secondary); margin-bottom: 6px; }
+        .api-bar-bg { background-color: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden; width: 100%; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
+        #apiBarFill { height: 100%; width: 0%; transition: width 0.4s ease, background-color 0.4s ease; border-radius: 4px; }
+
         .info-section { background: #f8fafc; border-radius: 6px; padding: 12px; border: 1px solid #e2e8f0; }
         .info-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
         .info-row:last-child { margin-bottom: 0; }
         .info-label { font-size: 0.85rem; font-weight: 800; color: #64748b; }
-        .info-content { font-size: 0.95rem; color: #334155; font-weight: 600; line-height: 1.4; word-break: keep-all; }
+        .info-content { font-size: 0.95rem; color: #334155; font-weight: 600; line-height: 1.4; word-break: break-word; overflow-wrap: break-word; }
         .career-item { position: relative; padding-left: 10px; margin-bottom: 4px; }
         .career-item:last-child { margin-bottom: 0; }
         .career-item::before { content: "•"; position: absolute; left: 0; color: #94a3b8; font-weight: bold; }
@@ -82,6 +88,13 @@
         </div>
 
         <div id="mainApp">
+            <!-- API Status Tracker (관계자 전용, 바 형태만 표시) -->
+            <div id="apiTrackerContainer" title="일일 API 예상 사용량">
+                <div class="api-bar-bg">
+                    <div id="apiBarFill"></div>
+                </div>
+            </div>
+
             <div class="controls">
                 <div class="control-group">
                     <label>정당 선택 (우선 필터)</label>
@@ -126,6 +139,45 @@
         const electionTypeSelect = document.getElementById('electionTypeSelect');
         const searchInput = document.getElementById('searchInput');
         const resultContainer = document.getElementById('resultContainer');
+
+        // API 사용량 추적 로직 (RPG 체력바 스타일)
+        const API_DAILY_LIMIT = 1000; // 공공데이터포털 기본 제공량 기준
+        
+        function getApiCountKey() {
+            const today = new Date();
+            return `api_count_${today.getFullYear()}_${today.getMonth()+1}_${today.getDate()}`;
+        }
+
+        function incrementApiCount(calls = 1) {
+            const key = getApiCountKey();
+            let count = parseInt(localStorage.getItem(key) || '0', 10);
+            count += calls;
+            localStorage.setItem(key, count.toString());
+            updateApiTrackerUI(count);
+        }
+
+        function updateApiTrackerUI(count) {
+            const container = document.getElementById('apiTrackerContainer');
+            const bar = document.getElementById('apiBarFill');
+            
+            if(container) container.style.display = 'block';
+            if(!bar) return;
+
+            let percentage = (count / API_DAILY_LIMIT) * 100;
+            if(percentage > 100) percentage = 100;
+            
+            bar.style.width = `${percentage}%`;
+            container.title = `내 기기 오늘 API 사용 횟수: ${count} / ${API_DAILY_LIMIT}`; // 호버 시에만 보이게 숨김
+            
+            // 색상 변화 로직 (안전: 녹색, 경고: 주황, 위험: 빨강)
+            if (percentage < 60) {
+                bar.style.backgroundColor = '#10b981'; // Green
+            } else if (percentage < 90) {
+                bar.style.backgroundColor = '#f59e0b'; // Orange
+            } else {
+                bar.style.backgroundColor = '#ef4444'; // Red
+            }
+        }
 
         // 비밀번호 확인 로직
         function checkPassword() {
@@ -187,6 +239,7 @@
 
             try {
                 // 1. 첫 페이지를 호출하여 totalCount 확보
+                incrementApiCount(1);
                 const response = await fetch(getUrl(1));
                 if (!response.ok) return [];
                 
@@ -208,7 +261,10 @@
                     for (let page = 2; page <= totalPages; page++) {
                         // 페이지 번호에 비례하여 20ms씩 차이를 두고 호출 (블로킹 방지)
                         const p = new Promise(resolve => setTimeout(resolve, (page - 2) * 20))
-                            .then(() => fetch(getUrl(page)))
+                            .then(() => {
+                                incrementApiCount(1);
+                                return fetch(getUrl(page));
+                            })
                             .then(res => {
                                 if (!res.ok) return [];
                                 return res.json();
