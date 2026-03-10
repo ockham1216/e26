@@ -40,8 +40,16 @@
         .name-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
         .name { font-size: 1.4rem; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
         .meta-tags { display: flex; gap: 6px; }
-        .meta-tag { background: #e2e8f0; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 700; }
+        .meta-tag { background: #e2e8f0; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 700; border: 1px solid transparent; }
         
+        /* Gender Tag Styles (Avoid party colors) */
+        .tag-gender-m { background-color: #f1f5f9; color: #3b82f6; border-color: #bfdbfe; font-weight: 800; } /* Soft Blue */
+        .tag-gender-f { background-color: #fdf2f8; color: #ec4899; border-color: #fbcfe8; font-weight: 800; } /* Soft Pink */
+        
+        /* Age Tag Styles */
+        .tag-age-young { background-color: #f0fdf4; color: #16a34a; border-color: #bbf7d0; font-weight: 800; } /* Soft Green - 50s and below */
+        .tag-age-senior { background-color: #fdf4ff; color: #a21caf; border-color: #f5d0fe; font-weight: 800; } /* Soft Purple - 60s and above */
+
         .info-section { background: #f8fafc; border-radius: 6px; padding: 12px; border: 1px solid #e2e8f0; }
         .info-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
         .info-row:last-child { margin-bottom: 0; }
@@ -281,6 +289,14 @@
                 const partyName = escapeHTML(c.jdName || '무소속');
                 const partyColorInfo = getPartyColor(partyName);
                 
+                // 나이 및 성별 파싱 후 스타일 분기
+                const ageNum = parseInt(c.age, 10);
+                const ageClass = !isNaN(ageNum) && ageNum < 60 ? 'tag-age-young' : 'tag-age-senior';
+                
+                const genderRaw = escapeHTML(c.gender);
+                const genderIcon = genderRaw === '남' ? '♂ 남' : (genderRaw === '여' ? '♀ 여' : genderRaw);
+                const genderClass = genderRaw === '남' ? 'tag-gender-m' : (genderRaw === '여' ? 'tag-gender-f' : '');
+
                 let careerHtml = `<div class="career-item">${escapeHTML(c.career1 || '-')}</div>`;
                 if(c.career2) careerHtml += `<div class="career-item">${escapeHTML(c.career2)}</div>`;
 
@@ -296,8 +312,8 @@
                     <div class="name-row">
                         <div class="name">${escapeHTML(c.name)}</div>
                         <div class="meta-tags">
-                            <span class="meta-tag">${escapeHTML(c.age)}세</span>
-                            <span class="meta-tag">${escapeHTML(c.gender)}</span>
+                            <span class="meta-tag ${ageClass}">${escapeHTML(c.age)}세</span>
+                            <span class="meta-tag ${genderClass}">${genderIcon}</span>
                         </div>
                     </div>
                     
