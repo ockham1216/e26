@@ -12,14 +12,7 @@
         
         .container { padding: 15px; max-width: 800px; margin: 0 auto; }
         
-        /* Password Section */
-        #authSection { background: var(--card-bg); padding: 30px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; margin-top: 40px; }
-        #authSection input { width: 100%; max-width: 300px; padding: 15px; margin: 15px 0; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; text-align: center; font-size: 1.2rem; letter-spacing: 2px; }
-        .btn { background-color: var(--accent); color: white; border: none; padding: 15px 20px; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: bold; width: 100%; max-width: 300px; }
-        .btn:hover { background-color: #2980b9; }
-
         /* Main App Controls */
-        #mainApp { display: none; }
         .controls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; background: var(--card-bg); padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .control-group { display: flex; flex-direction: column; }
         label { font-size: 0.85rem; color: var(--secondary); margin-bottom: 4px; font-weight: bold; }
@@ -71,16 +64,6 @@
     </div>
 
     <div class="container">
-        <div id="authSection">
-            <h3 style="color: var(--primary); margin-top:0;">시스템 접근</h3>
-            <p style="font-size: 0.9rem; color: #666; margin-bottom: 20px;">
-                조회를 위해 제공받은 비밀번호를 입력해주세요.
-            </p>
-            <input type="password" id="passwordInput" placeholder="비밀번호 6자리" maxlength="6" onkeypress="if(event.keyCode==13) checkPassword()">
-            <button class="btn" onclick="checkPassword()">접속하기</button>
-            <div id="pwdError" style="color: red; font-size: 0.85rem; margin-top: 10px; display: none;">비밀번호가 일치하지 않습니다.</div>
-        </div>
-
         <div id="mainApp">
             <div id="refreshSection" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: var(--card-bg); padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
                 <div id="lastRefreshDate" style="font-size: 0.9rem; font-weight: bold; color: var(--secondary);">
@@ -124,27 +107,12 @@
 
         let allCandidates = [];
 
-        const authSection = document.getElementById('authSection');
-        const mainApp = document.getElementById('mainApp');
         const partySelect = document.getElementById('partySelect');
         const electionTypeSelect = document.getElementById('electionTypeSelect');
         const searchInput = document.getElementById('searchInput');
         const resultContainer = document.getElementById('resultContainer');
 
-        // 비밀번호 확인 로직
-        function checkPassword() {
-            const input = document.getElementById('passwordInput').value;
-            const errorMsg = document.getElementById('pwdError');
-            
-            if (input === SYSTEM_PASSWORD) {
-                authSection.style.display = 'none';
-                mainApp.style.display = 'block';
-                loadData(); // 데이터 파일(data.json) 로드 시작
-            } else {
-                errorMsg.style.display = 'block';
-                document.getElementById('passwordInput').value = '';
-            }
-        }
+        window.addEventListener('DOMContentLoaded', loadData);
 
         async function loadData() {
             resultContainer.innerHTML = '<div class="message loading-spinner">저장소에서 데이터를 불러오고 있습니다...</div>';
