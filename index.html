@@ -143,7 +143,20 @@
                 }
                 const parsedData = await response.json();
                 
-                allCandidates = parsedData.data;
+                // API 오류로 인한 중복 후보자 데이터 제거 (이름, 생년월일, 선거유형, 지역 기준)
+                const rawCandidates = parsedData.data;
+                const uniqueCandidates = [];
+                const seenCandidates = new Set();
+                
+                for (const c of rawCandidates) {
+                    const key = `${c._typeCode}_${c.sdName}_${c.wiwName}_${c.sggName}_${c.name}_${c.birthday}`;
+                    if (!seenCandidates.has(key)) {
+                        seenCandidates.add(key);
+                        uniqueCandidates.push(c);
+                    }
+                }
+                allCandidates = uniqueCandidates;
+                
                 const cachedDate = parsedData.last_updated;
                 
                 if (cachedDate) {

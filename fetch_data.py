@@ -114,6 +114,23 @@ async def main():
             all_candidates.extend(res)
             
     if all_candidates:
+        # Deduplicate to remove identical candidates that the API might return multiple times with different huboids
+        unique_candidates = []
+        seen = set()
+        for c in all_candidates:
+            key = (
+                c.get("_typeCode", ""),
+                c.get("sdName", ""),
+                c.get("wiwName", ""),
+                c.get("sggName", ""),
+                c.get("name", ""),
+                c.get("birthday", "")
+            )
+            if key not in seen:
+                seen.add(key)
+                unique_candidates.append(c)
+        all_candidates = unique_candidates
+
         # Convert to Korean Time (KST is UTC+9)
         now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
         output = {
